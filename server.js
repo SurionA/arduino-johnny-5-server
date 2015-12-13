@@ -16,29 +16,62 @@ app.get('/', function(req, res) {
 httpServer.listen(port);  
 console.log('Server available at http://localhost:' + port);  
 var led;
- 
+var ledCurrentAttributes = {};
+
 //Arduino board connection
  
 var board = new five.Board();  
 board.on("ready", function() {  
     console.log('Arduino connected');
     led = new five.Led(13);
+
+    ledCurrentAttributes.isOn = led.isOn;
+    ledCurrentAttributes.brightness = 255;
+    ledCurrentAttributes.isBlink = false;        
 });
  
 //Socket connection handler
 io.on('connection', function (socket) {  
         console.log('Socket ID',socket.id);
- 
+        
+        socket.emit('ledState', ledCurrentAttributes);
+
         socket.on('led:on', function (data) {
-           led.on();
-           console.log('LED ON RECEIVED');
+            led.fadeIn(1000, function(){
+                ledCurrentAttributes.isOn = led.isOn;
+                socket.emit('ledState', ledCurrentAttributes);
+                socket.broadcast.emit('ledState', ledCurrentAttributes);
+            });
         });
- 
+
         socket.on('led:off', function (data) {
-            led.off();
-            console.log('LED OFF RECEIVED');
- 
+            led.stop();
+            led.fadeOut(1000, function(){
+            ledCurrentAttributes.isOn = led.isOn;
+            ledCurrentAttributes.brightness = 255;
+            ledCurrentAttributes.isBlink = false;
+                socket.emit('ledState', ledCurrentAttributes);
+                socket.broadcast.emit('ledState', ledCurrentAttributes);
+            });
         });
-    });
+
+        socket.on('led-brightness', function (data) {
+            led.fade(parseInt(data.value), 500);
+            ledCurrentAttributes.brightness = data.value;
+            socket.broadcast.emit('ledState', ledCurrentAttributes);
+        });
+
+        socket.on('led-blink:on', function (data) {
+            led.strobe(500);
+            ledCurrentAttributes.isBlink = true;
+            socket.broadcast.emit('ledState', ledCurrentAttributes);
+        });
+
+        socket.on('led-blink:off', function (data) {
+            led.stop();
+            ledCurrentAttributes.isBlink = false;
+            socket.broadcast.emit('ledState', ledCurrentAttributes);
+        });
+});
  
 console.log('Waiting for connection');
