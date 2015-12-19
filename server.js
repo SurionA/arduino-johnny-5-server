@@ -1,9 +1,9 @@
 var express        = require('express');  
 var app            = express();  
-var httpServer = require("http").createServer(app);  
-var five = require("johnny-five");  
-var io=require('socket.io')(httpServer);
- 
+var httpServer     = require("http").createServer(app);  
+var five           = require("johnny-five");  
+var io             = require('socket.io')(httpServer);
+var mongoose       = require('mongoose');
 var port = 3000; 
  
 /*
@@ -13,6 +13,18 @@ app.get('/', function(req, res) {
         res.sendFile(__dirname + '/public/index.html');
 });
 */
+
+mongoose.connect('mongodb://localhost/data/db', function(err) {
+  if (err) { throw err; }
+});
+
+var connexionShema = mongoose.Schema({
+    socket_id: String,
+    creation_datetime: { type: Date, default: Date.now }
+});
+
+var connexion = mongoose.model('connexion', connexionShema);
+
 httpServer.listen(port);  
 console.log('Server available at http://localhost:' + port);  
 var led;
@@ -33,7 +45,14 @@ board.on("ready", function() {
 //Socket connection handler
 io.on('connection', function (socket) {  
         console.log('Socket ID',socket.id);
-        
+        var inputConnexion = new connexion({ socket_id: socket.id });
+        console.log(inputConnexion);
+        inputConnexion.save();
+        connexion.find(function (err, conn) {
+          if (err) return console.error(err);
+          console.log(conn);
+        });
+
         socket.emit('ledState', ledCurrentAttributes);
 
         socket.on('led:on', function (data) {
